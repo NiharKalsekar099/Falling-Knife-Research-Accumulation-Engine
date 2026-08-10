@@ -1,8 +1,10 @@
-# Falling Knife Investing - V1 Plan
+# Falling Knife Research & Accumulation Engine — Project Plan
+
+## V1 Plan
 
 ## Goal
 
-Create a Codex-driven, manually invoked workflow that responds to **"Run today's Falling Knife report."** It identifies the top five software-stock decliners for the applicable US trading session, performs SEC- and news-backed research, and saves a separate Markdown investment-research report for each run.
+Create a Codex-driven, manually invoked workflow that responds to **"Run today's Falling Knife report."** It identifies the top five U.S.-headquartered software-stock decliners for the applicable US trading session, performs SEC- and news-backed research, and saves a separate Markdown investment-research report for each run.
 
 The workflow is research only. It must not place trades, make portfolio-allocation decisions, or present its output as personalized investment advice.
 
@@ -18,7 +20,7 @@ The workflow is research only. It must not place trades, make portfolio-allocati
 ## Screening workflow
 
 1. Call `get_popular_watchlists`, locate the curated list named `Software`, then call `get_watchlist_items` with its list ID.
-2. Retain equity instruments with usable ticker symbols. Retrieve Robinhood fundamentals in batches of at most 10 symbols, using `bounds: "regular"`, and retain companies with current market capitalization of at least $2.0B (inclusive).
+2. Retain equity instruments with usable ticker symbols. Retrieve Robinhood fundamentals in batches of at most 10 symbols, using `bounds: "regular"`, and retain companies with current market capitalization of at least $2.0B (inclusive) whose `headquarters_state` is one of the 50 U.S. states or the District of Columbia. Exclude foreign issuers and ADRs.
 3. Retrieve regular-session price data in batches. Use split-adjusted prices and calculate:
 
    ```text
@@ -128,3 +130,92 @@ Each report must contain:
 - The report ranks at most five companies, preserves their raw screening data, and handles fewer qualifying names and non-trading days correctly.
 - Every thesis includes the four required subscores, a one-decimal equal-weight final score, the correct label, and an opportunity/failure thesis.
 - SEC claims cite the filing period and accession number; news claims cite direct public links; missing data and unconfirmed catalysts are explicit.
+
+## V2 Plan
+
+### Deterministic Calculation Extraction Plan
+
+This section records the plan to move repeatable calculations from the agent instructions into small, tested Python helpers. The current `AGENTS.md` is authoritative for formulas, thresholds, scoring bands, weights, and methodology. The older V1 content above is retained as historical planning context.
+
+### Calculations to extract
+
+- Daily decline percentage using current and previous prices.
+- Inclusive `$2.0B` market-cap eligibility filtering.
+- Ranking by most-negative decline and top-five selection.
+- Standalone Q2, Q3, and Q4 derivations from matching YTD or annual values.
+- TTM Net Income and Operating Cash Flow sums.
+- TTM Quality of Earnings ratio.
+- Enterprise Value, EV/Revenue, Free Cash Flow, and FCF Yield.
+- Absolute-value treatment for negative capital expenditures.
+- Earnings-quality deterioration deduction and score floor.
+- Fixed score-band mappings for Earnings Quality, EV/Revenue, and FCF Yield.
+- Weighted six-factor final score.
+- One-decimal rounding and final research-label assignment.
+- Deterministic boundary and missing-data behavior.
+
+The agent remains responsible for data retrieval, source selection, accounting comparability checks, evidence evaluation, qualitative scoring inputs, citations, and report writing.
+
+### Proposed file structure
+
+```text
+scripts/
+  __init__.py
+  falling_knife_calculations.py
+
+tests/
+  test_falling_knife_calculations.py
+```
+
+The Python module will contain typed, pure functions and small data models. It will not contain MCP, web, trading, SEC retrieval, filesystem-reporting, or Markdown-generation logic. Tests will use Python's standard-library `unittest` framework so they require no network access or external services.
+
+### Implementation phases
+
+1. Define pure typed interfaces for screening, ranking, standalone-period derivation, TTM aggregation, valuation, score-band mapping, weighted scoring, rounding, and labels.
+2. Add deterministic tests for formulas, thresholds, missing inputs, boundary values, ranking order, score deductions, and labels.
+3. Update `AGENTS.md` only where necessary to instruct the agent to call the Python helpers for repeatable calculations while retaining the existing methodology.
+4. Run the unit tests and verify that the helper outputs match the formulas and thresholds documented in `AGENTS.md`.
+
+### Acceptance criteria
+
+- Every listed repeatable calculation is implemented as a pure, typed Python function.
+- Scripts contain no MCP, web, trading, qualitative-analysis, citation, or report-writing logic.
+- Tests pass offline and cover exact scoring and label boundaries.
+- `AGENTS.md` directs the agent to use the helpers without changing formulas, thresholds, weights, or methodology.
+- Data comparability and qualitative judgments remain agent-owned.
+
+# V3 Plan
+
+## Connected Report-and-Approval Workflow
+
+Change `Run today's Falling Knife report` so that, after a report is successfully generated, it immediately starts the reviewed purchase workflow only if the report finishes during regular US equity-market hours. It uses the just-generated report's top two final scores, prepares two `$5.00` orders, automatically selects an eligible agentic Robinhood account, and automatically shows Robinhood previews. It never places an order without one fresh, explicit confirmation for both buys.
+
+## Implementation changes
+
+- Update the report playbook to hand its exact generated report path and session basis directly to the purchase selector; do not rescan older reports or use a separate manual execution trigger.
+- Extend `scripts/falling_knife_trade_selection.py` to accept that report path and validate both completed-session and current intraday report formats. Select the two highest final scores, using report rank for ties, and create only two `$5.00` requests with a `$10.00` cap.
+- Add machine-readable report metadata for the ET run timestamp, analysis-session date, and `intraday` or `completed` price basis, so the selector can validate the fresh report.
+- Retain idempotency UUIDs and immutable per-order outcome records under `trades/`. Never substitute a ticker or alter the fixed notional.
+
+## Market-hours and Robinhood workflow
+
+- At handoff time, re-check the exchange calendar and current regular session, including early closes. If the report finishes outside market hours, do not invoke selection, Robinhood tools, previews, approval prompts, retries, or a next-session handoff.
+- Call `get_accounts` after validating market hours. Filter to accounts with `agentic_allowed=true`, `state=active`, `deactivated=false`, and `permanently_deactivated=false`; select the first qualifying account in Robinhood's returned order. If none qualify, skip the purchase portion and state why.
+- Check regular-hours fractional/dollar-order tradability, then preview both unchanged `buy`, `market`, `regular_hours`, `gfd`, `$5.00` orders automatically. Display Robinhood's required quote disclosures verbatim. Blocking broker checks fail the full purchase portion.
+- Ask for no separate preview permission. Ask for one explicit placement confirmation only after both previews succeed and only while the market remains open. Confirmation must name both tickers, confirm `$5.00` each, and state the `$10.00` total.
+- If the Robinhood MCP rejects the workflow-selected account because it was not explicitly user-supplied, fail closed and surface that compatibility blocker. Do not select another account or attempt a workaround.
+- On confirmation, submit both unchanged requests with their matching idempotency UUIDs. If approval is absent, expires at market close, or any validation fails, place neither order. Do not cancel, replace, sell, or access positions.
+
+## Policy and tests
+
+- Keep research agents read-only until the successful in-market handoff; permit order placement only in the dedicated reviewed executor.
+- Test both intraday and completed-session direct handoffs, score/tie selection, automatic first-eligible-account selection, no eligible account, `$5.00`/`$10.00` limits, duplicate protection, blocking broker checks, and market closure during preview.
+- Test that previews occur without a preliminary user-approval prompt and that only an explicit two-ticker, `$5.00` each, `$10.00` total confirmation permits placement.
+- Test after-hours, weekends, holidays, and early closes to confirm the whole purchase portion is ignored with no prompt or deferred retry.
+
+## Assumptions
+
+- "Today" is the current US Eastern calendar date.
+- "Top two" means the two highest final scores in the just-generated report.
+- Intraday reports are eligible for the same-run approval prompt.
+- "First eligible account" means the first account in Robinhood's `get_accounts` response with `agentic_allowed=true`, active state, and neither deactivation flag set.
+- The Robinhood MCP's explicit confirmation requirement remains mandatory for each daily live-order run.
