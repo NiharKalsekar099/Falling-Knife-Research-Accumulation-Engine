@@ -76,26 +76,31 @@ For every selected company, preserve the ticker, current market cap, prior close
 
 **TTM earnings quality**
 
-1. Use `list_filings` and accession-specific `get_financial_statements` calls to obtain the latest four comparable fiscal quarters. Use a relevant 10-Q/A or 10-K/A instead of the original filing.
-2. Extract standalone quarterly Net Income and Operating Cash Flow (OCF); never add year-to-date values as independent quarters.
-3. Derive Q4 only when annual and nine-month amounts have matching fiscal periods, units, accounting scope, and XBRL concepts. Otherwise, treat the TTM data as incomplete.
-4. Calculate only when four comparable quarters exist:
+1. Use `list_filings` to collect the relevant 10-Q/10-Q/A and 10-K/10-K/A filings across the current and prior fiscal year. Identify the latest four completed sequential fiscal quarters; do not use the four latest 10-Q filings because that omits Q4. Use a relevant amendment instead of the original filing.
+2. Call `get_financial_statements` by accession number for every filing needed to form those four quarters, including the annual filing and matching nine-month 10-Q needed to derive Q4.
+3. Extract standalone quarterly Revenue and Net Income from the income statements. Extract standalone OCF and capex from cash-flow statements: Q1 is the three-month amount, Q2 is six-month YTD minus Q1, Q3 is nine-month YTD minus six-month YTD, and Q4 is annual minus nine-month YTD. Never add year-to-date amounts as independent quarters.
+4. Perform a derivation only when fiscal periods, units, accounting scope, and statement concepts match. Otherwise, treat only the affected metric as unavailable and state the exact missing or non-comparable input.
+5. Calculate only when four comparable quarters exist:
 
    ```text
    TTM Net Income = sum of latest 4 comparable quarterly Net Income values
    TTM Operating Cash Flow = sum of latest 4 comparable quarterly OCF values
+   TTM Revenue = sum of latest 4 comparable quarterly Revenue values
+   TTM Capex = sum of latest 4 comparable quarterly capex values
+   TTM Free Cash Flow = TTM Operating Cash Flow - absolute value of TTM Capex
    TTM Quality of Earnings Ratio = TTM Operating Cash Flow / TTM Net Income
    ```
 
-5. When TTM Net Income is zero or negative, state that the ratio is not meaningful. When required TTM data is unavailable or non-comparable, assign the Earnings Quality subscore `5.0` and explain the data gap.
-6. Analyze the four-quarter trend plus available working-capital changes (including accounts receivable and inventory) and material non-cash drivers.
+6. Show a source table with fiscal end, filing type, accession number, Revenue, Net Income, OCF, capex, and reported-versus-derived status for each quarter.
+7. When TTM Net Income is zero or negative, state that the ratio is not meaningful. When required TTM data is unavailable or non-comparable, assign the Earnings Quality subscore `5.0` and explain the data gap.
+8. Analyze the four-quarter trend plus available working-capital changes (including accounts receivable and inventory) and material non-cash drivers.
 
 **Valuation metrics**
 
-1. For each selected company, apply the `Calculate Valuation Metrics` playbook.
-2. Calculate EV/Revenue and FCF Yield before assigning their respective subscores.
-3. Use the market capitalization already preserved during screening.
-4. If either metric cannot be calculated, apply the relevant missing-data scoring rule and explain the limitation.
+1. For each selected company, apply the `Calculate Valuation Metrics` playbook using the TTM Revenue, OCF, capex, and free-cash-flow values already built in the four-quarter source table.
+2. Retrieve the latest comparable balance sheet by accession number for cash, short-term investments, and debt classification; use the market capitalization already preserved during screening.
+3. Calculate EV/Revenue and FCF Yield before assigning their respective subscores.
+4. If either metric cannot be calculated, apply the relevant missing-data scoring rule and explain the exact unavailable or non-comparable input.
 
 ### 3. Score and label
 

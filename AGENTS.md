@@ -66,9 +66,11 @@ Include the latest filing period and any relevant data limitations.
 
 **Tool sequence:**
 
-1. Call `get_financial_statements` for the normalized ticker.
-2. Derive Net Income and Operating Cash Flow (OCF) for each of the last four available quarters from the returned structured statements.
-3. If four comparable quarters cannot be derived from the available statements, report the available periods, explain the limitation, and do not calculate a four-quarter total from incomplete data.
+1. Call `list_filings` for the normalized ticker to collect the latest relevant `10-Q`/`10-Q/A` and `10-K`/`10-K/A` filings across at least the current and prior fiscal year. Prefer an amendment when it revises the required period; never use both the original and its replacement.
+2. Identify the latest four completed sequential fiscal quarters. Do not substitute the four most recent 10-Q filings, because that would omit Q4.
+3. Call `get_financial_statements` by accession number for every filing needed to construct those quarters: the relevant 10-Q filings, plus the annual filing and matching nine-month 10-Q required for Q4.
+4. Extract standalone quarterly Revenue and Net Income from the income statements. Derive standalone OCF and capex from matching cumulative statements: Q2 equals six-month YTD minus Q1, Q3 equals nine-month YTD minus six-month YTD, and Q4 equals annual minus nine-month YTD.
+5. Perform a derivation only when fiscal periods, units, accounting scope, and statement concepts match. If four comparable quarters cannot be derived, report the available periods, identify the exact missing or non-comparable input, and do not calculate an incomplete four-quarter total.
 
 **Calculations:**
 
@@ -80,8 +82,8 @@ TTM Quality of Earnings Ratio = TTM Operating Cash Flow / TTM Net Income
 
 **Report:**
 
-1. Show a Markdown table of each reported quarter, Net Income, OCF, and the relevant filing period.
-2. Show TTM totals and the Quality of Earnings Ratio, including the calculation inputs.
+1. Show a Markdown table of each quarter's fiscal end, filing type, accession number, Revenue, Net Income, OCF, capex, and whether a value was reported or derived.
+2. Show TTM Revenue, Net Income, OCF, capex, free cash flow, and the Quality of Earnings Ratio, including the calculation inputs.
 3. Evaluate whether weak quarters appear temporary or form a downward trend.
 4. Interpret the ratio carefully:
    - Above `1.0`: earnings are more strongly supported by trailing operating cash flow.
@@ -100,8 +102,8 @@ Clearly identify all filing periods used, explain any unavailable line items, an
 
 1. Normalize and validate the ticker symbol.
 2. Call Robinhood `get_equity_fundamentals` for the current market capitalization.
-3. Call SEC EDGAR `list_filings` to identify the latest relevant 10-Q/10-Q/A and 10-K/10-K/A filings.
-4. Call SEC EDGAR `get_financial_statements` for the latest comparable balance-sheet, income-statement, and cash-flow data.
+3. Call SEC EDGAR `list_filings` to identify the accession-specific 10-Q/10-Q/A and 10-K/10-K/A filings required for the latest four completed fiscal quarters.
+4. Call SEC EDGAR `get_financial_statements` by accession number for each selected filing, plus the latest comparable balance sheet for cash, short-term investments, and debt.
 
 **Enterprise Value:**
 
@@ -136,7 +138,7 @@ Free Cash Flow = Net Cash Provided by Operating Activities
 
 SEC cash-flow statements may present purchases of property and equipment as negative numbers. Treat purchases of property and equipment as a positive cash-outflow magnitude before subtracting them from operating cash flow; never subtract a negative capex value.
 
-Use the latest four comparable fiscal quarters. Derive a standalone interim quarter by subtracting the immediately preceding comparable year-to-date amount from the current year-to-date amount. Perform the subtraction only when fiscal periods, units, accounting scope, and statement concepts match. For example:
+Use the latest four completed, comparable fiscal quarters selected in the earnings-quality workflow. Derive a standalone interim quarter by subtracting the immediately preceding comparable year-to-date amount from the current year-to-date amount. Perform the subtraction only when fiscal periods, units, accounting scope, and statement concepts match. For example:
 
 ```text
 Standalone Q2 OCF = Six-month YTD OCF - Three-month YTD OCF
@@ -155,7 +157,7 @@ FCF Yield = TTM Free Cash Flow / Market Capitalization
 **Report:**
 
 - Show the final EV/Revenue and FCF Yield.
-- Briefly identify market capitalization, debt components, cash, short-term investments, TTM revenue, operating cash flow, capital expenditures, and TTM free cash flow.
+- Briefly identify market capitalization, debt components, cash, short-term investments, TTM revenue, operating cash flow, capital expenditures, and TTM free cash flow. Reuse the four-quarter source table from the earnings-quality analysis rather than retrieving a broad, unspecified statement set.
 - State the Robinhood tool, SEC filing type, reporting period, and accession number used for each material input.
 - State unavailable or non-comparable data and do not invent missing values.
 - Present the analysis as informational research, not personalized investment advice.

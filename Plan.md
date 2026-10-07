@@ -219,3 +219,26 @@ Change `Run today's Falling Knife report` so that, after a report is successfull
 - Intraday reports are eligible for the same-run approval prompt.
 - "First eligible account" means the first account in Robinhood's `get_accounts` response with `agentic_allowed=true`, active state, and neither deactivation flag set.
 - The Robinhood MCP's explicit confirmation requirement remains mandatory for each daily live-order run.
+
+# V3.5 Plan
+
+## Accession-Specific TTM Metrics Retrieval
+
+Improve the report's financial-data collection so it constructs the latest four completed fiscal quarters before calculating earnings quality and valuation. This work does not change the separate Item 1A risk-factor retrieval path.
+
+## Implementation changes
+
+- List recent `10-Q`/`10-Q/A` and `10-K`/`10-K/A` filings across the current and prior fiscal year, preferring an amendment when it replaces the original filing.
+- Select the latest four sequential fiscal quarters rather than the latest four 10-Q filings, which would omit Q4.
+- Retrieve every required statement using its filing accession number. Use the annual filing and matching nine-month 10-Q to derive Q4.
+- Extract standalone Revenue and Net Income; derive standalone OCF and capex as Q2 = six-month YTD minus Q1, Q3 = nine-month YTD minus six-month YTD, and Q4 = annual minus nine-month YTD.
+- Calculate TTM Revenue, Net Income, OCF, capex, free cash flow, the Quality of Earnings Ratio, EV/Revenue, and FCF Yield. Use the latest comparable balance sheet plus screening market capitalization for enterprise value.
+- Add a four-quarter report table showing fiscal end, filing type, accession number, Revenue, Net Income, OCF, capex, and whether each figure was reported or derived.
+
+## Safeguards and verification
+
+- Derive figures only when periods, units, accounting scope, and statement concepts match; identify the exact unavailable or non-comparable input instead of inventing a substitute.
+- Never treat a year-to-date cash-flow figure as a standalone quarter or double-count debt components in enterprise value.
+- Keep filing type, reporting period, and accession number with each material SEC input.
+- Retain existing score bands and neutral-score rules; only improve the availability and traceability of the inputs.
+- Cover a complete Q1-Q4 fixture in the deterministic tests, including derived OCF/capex, TTM totals, free cash flow, EV/Revenue, and FCF Yield.
